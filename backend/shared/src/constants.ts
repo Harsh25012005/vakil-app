@@ -1,0 +1,9 @@
+export const API_VERSION = 'v1';
+export const TIMEZONE = 'Asia/Kolkata';
+export const PAGE_SIZE = 20;
+export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+export const STORAGE_QUOTA_BYTES = 1024 * 1024 * 1024;
+export const MAX_PINNED_NOTES = 3;
+export const NOTIFICATION_RETENTION_DAYS = 60;
+export const SOFT_DELETE_RETENTION_DAYS = 30;
+export const DEFAULT_REMINDERS = { evening: '20:00', morning: '08:00', needsUpdate: '18:00' } as const;
