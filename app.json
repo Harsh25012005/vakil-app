@@ -48,6 +48,12 @@
       "favicon": "./assets/images/favicon.png",
       "themeColor": "#1758FD",
       "backgroundColor": "#FFFFFF"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a18ba9c9-0b2c-4a8c-a85b-1b1a753fbee4"
+      }
     }
   }
 }

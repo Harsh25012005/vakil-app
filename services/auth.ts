@@ -241,7 +241,11 @@ async function signInWithGoogleNative(): Promise<Session | null | undefined> {
     if (g.isErrorWithCode(e)) {
       if (e.code === g.statusCodes.IN_PROGRESS) return null;
       if (e.code === g.statusCodes.PLAY_SERVICES_NOT_AVAILABLE) return undefined; // use the browser flow
-      throw new ApiError(500, 'OAUTH_ERROR', "Couldn't sign in with Google. Please try again.");
+      // DEVELOPER_ERROR (10): this build's SHA-1 or package name isn't registered on the Android OAuth
+      // client, or the web client ID is wrong / deleted. A setup problem, not something the user can fix.
+      if (String(e.code) === '10' || /DEVELOPER_ERROR/i.test(String(e.message)))
+        throw new ApiError(500, 'GOOGLE_SETUP', 'Google sign-in is not set up for this app build yet (DEVELOPER_ERROR). Use email sign-in for now.');
+      throw new ApiError(500, 'OAUTH_ERROR', `Couldn't sign in with Google (${e.code}). Please try again.`);
     }
     throw e;
   }
