@@ -72,7 +72,7 @@ export default function AddCase() {
 
   return (
     <FormScreen modal avoidKeyboard={false} onBack={close} title="Add case" subtitle="All fields are required. Add hearings and notes from the case afterwards." footer={<Button label="Save case" onPress={save} loading={create.isPending} fullWidth haptic="light" />}>
-      <CaseFormFields values={values} errors={errors} onChange={set} />
+      <CaseFormFields mode="add" values={values} errors={errors} onChange={set} />
       <Dialog open={confirmClose} onClose={() => setConfirmClose(false)} title="Discard this case?" message="Your draft is saved. Keep it to finish later, or discard it." cancelLabel="Keep draft" confirmLabel="Discard" onConfirm={discard} />
     </FormScreen>
   );

@@ -5,7 +5,10 @@ import { useTheme } from '@/hooks/useTheme';
 import { useClients } from '@/hooks/useClients';
 import { useCaseTypes, useCourts, useListMutations } from '@/hooks/useLists';
 import { errorMessage } from '@/services/api';
-import { fetchCaseByCnr } from '@/services/ecourts';
+import { fetchCaseByCnr, type EcourtsCase } from '@/services/ecourts';
+import { formatShortDate, todayISO } from '@/utils/date';
+import { Card } from './ui/Card';
+import { KeyValueRow } from './ui/KeyValueRow';
 import type { CaseFormErrors, CaseFormValues } from '@/utils/caseForm';
 import { QuickClientSheet } from './QuickClientSheet';
 import { DatePicker } from './ui/DatePicker';
@@ -16,10 +19,16 @@ import { Text } from './ui/Text';
 import { TextField } from './ui/TextField';
 import { useToast } from './ui/Toast';
 
-type Props = { values: CaseFormValues; errors: CaseFormErrors; onChange: (patch: Partial<CaseFormValues>) => void };
+type Props = {
+  values: CaseFormValues;
+  errors: CaseFormErrors;
+  onChange: (patch: Partial<CaseFormValues>) => void;
+  /** Add case also sets the first hearing; on Edit, hearings are managed on their own tab. */
+  mode?: 'add' | 'edit';
+};
 
 /** The one case form, shared by Add case and Edit case. Every field is required. */
-export function CaseFormFields({ values, errors, onChange }: Props) {
+export function CaseFormFields({ values, errors, onChange, mode = 'edit' }: Props) {
   const toast = useToast();
   const courts = useCourts();
   const types = useCaseTypes();
@@ -28,7 +37,9 @@ export function CaseFormFields({ values, errors, onChange }: Props) {
   const [addingClient, setAddingClient] = useState(false);
   const { colors } = useTheme();
   const [fetching, setFetching] = useState(false);
-  const [fetchFailed, setFetchFailed] = useState(false);
+  /** Why the last eCourts lookup failed, shown under the CNR field until the next try. */
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetched, setFetched] = useState<EcourtsCase | null>(null);
   // The CNR the form opened with (edit screen) is not re-fetched; only a newly typed one is.
   const fetchedCnr = useRef(values.cnr);
 
@@ -36,9 +47,12 @@ export function CaseFormFields({ values, errors, onChange }: Props) {
   const fetchFromEcourts = async (cnr: string) => {
     fetchedCnr.current = cnr;
     setFetching(true);
-    setFetchFailed(false);
+    setFetchError(null);
     try {
       const d = await fetchCaseByCnr(cnr);
+      setFetched(d);
+      // Only an upcoming date becomes the next hearing; a past one is history, not something to attend.
+      const upcoming = d.nextHearingDate && d.nextHearingDate >= todayISO() ? d.nextHearingDate : undefined;
       const petitioner = d.petitioners[0] ?? '';
       const respondent = d.respondents[0] ?? '';
       const patch: Partial<CaseFormValues> = {
@@ -50,7 +64,9 @@ export function CaseFormFields({ values, errors, onChange }: Props) {
         judge: d.judge ?? values.judge,
         courtRoom: d.courtNo ?? values.courtRoom,
         stage: d.stage ?? values.stage,
-        nextHearingDate: d.nextHearingDate ?? values.nextHearingDate,
+        nextHearingDate: upcoming ?? values.nextHearingDate,
+        nextHearingPurpose: upcoming ? (d.hearings.find((h) => h.date === upcoming)?.purpose ?? d.stage ?? '') : values.nextHearingPurpose,
+        history: d.hearings.map((h) => ({ date: h.date, purpose: h.purpose })),
       };
       if (!values.title.trim() && (petitioner || respondent)) patch.title = [petitioner, respondent].filter(Boolean).join(' v. ');
       const courtName = [d.courtName, d.district].filter(Boolean).join(', ');
@@ -59,8 +75,7 @@ export function CaseFormFields({ values, errors, onChange }: Props) {
       onChange(patch);
       toast.show({ type: 'success', message: 'Details filled from eCourts. Check them before saving.' });
     } catch (err) {
-      setFetchFailed(true);
-      toast.show({ type: 'error', message: errorMessage(err) });
+      setFetchError(errorMessage(err));
     } finally {
       setFetching(false);
     }
@@ -93,8 +108,32 @@ export function CaseFormFields({ values, errors, onChange }: Props) {
             Fetching case details from eCourts…
           </Text>
         </View>
-      ) : fetchFailed && values.cnr.length === 16 ? (
-        <LinkText label="Couldn't fetch from eCourts. Try again" onPress={() => void fetchFromEcourts(values.cnr)} className="-mt-3 ml-1" />
+      ) : fetchError && values.cnr.length === 16 ? (
+        <View className="-mt-3 gap-1 px-1">
+          <Text variant="body-sm" tone="error">
+            {fetchError}
+          </Text>
+          <LinkText label="Try again" onPress={() => void fetchFromEcourts(values.cnr)} />
+        </View>
+      ) : null}
+      {fetched && !fetching ? (
+        <Card variant="subtle" className="-mt-2 gap-1">
+          <Text variant="overline" tone="primary">
+            From eCourts
+          </Text>
+          <KeyValueRow label="Case no." value={fetched.caseNumber} divider />
+          <KeyValueRow label="Status" value={fetched.status} divider />
+          <KeyValueRow label="Stage" value={fetched.stage} divider />
+          <KeyValueRow label="Court" value={[fetched.courtName, fetched.courtNo && `Court no. ${fetched.courtNo}`].filter(Boolean).join(' · ')} divider />
+          <KeyValueRow label="Judge" value={fetched.judge} divider />
+          <KeyValueRow label="Petitioner" value={fetched.petitioners.join(', ')} divider />
+          <KeyValueRow label="Respondent" value={fetched.respondents.join(', ')} divider />
+          {fetched.petitionerAdvocates.length || fetched.respondentAdvocates.length ? (
+            <KeyValueRow label="Advocates" value={[...fetched.petitionerAdvocates, ...fetched.respondentAdvocates].join(', ')} divider />
+          ) : null}
+          <KeyValueRow label="Last hearing" value={fetched.lastHearingDate ? formatShortDate(fetched.lastHearingDate) : undefined} divider />
+          <KeyValueRow label="Next hearing" value={fetched.nextHearingDate ? formatShortDate(fetched.nextHearingDate) : undefined} />
+        </Card>
       ) : null}
       <TextField label="Case title" required value={values.title} onChangeText={(title) => onChange({ title })} error={errors.title} placeholder="Petitioner v. Respondent" autoCapitalize="words" returnKeyType="next" clearable />
       <Select
@@ -135,6 +174,15 @@ export function CaseFormFields({ values, errors, onChange }: Props) {
         addNewLabel="Add court"
       />
       <DatePicker label="Filing date" required value={values.filingDate} onChange={(filingDate) => onChange({ filingDate })} error={errors.filingDate} showQuickChips={false} />
+      {mode === 'add' ? (
+        <DatePicker
+          label="Next hearing date"
+          value={values.nextHearingDate}
+          onChange={(nextHearingDate) => onChange({ nextHearingDate })}
+          helper="Optional. Filled from eCourts when available."
+          warnIfPast
+        />
+      ) : null}
       <View className="gap-2">
         <MultiSelect
           label="Client"

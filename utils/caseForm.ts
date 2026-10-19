@@ -19,6 +19,8 @@ export type CaseFormValues = {
   stage: string;
   nextHearingDate: string | null;
   nextHearingPurpose: string;
+  /** Hearing history fetched from eCourts (Add case only). */
+  history: { date: string; purpose?: string }[];
 };
 
 export type CaseFormErrors = Partial<Record<keyof CaseFormValues, string>>;
@@ -40,6 +42,7 @@ export const emptyCaseForm = (defaults: Partial<CaseFormValues> = {}): CaseFormV
   stage: '',
   nextHearingDate: null,
   nextHearingPurpose: '',
+  history: [],
   ...defaults,
 });
 
@@ -60,6 +63,7 @@ export const formFromCase = (c: Case): CaseFormValues => ({
   stage: c.stage ?? '',
   nextHearingDate: c.nextHearingAt,
   nextHearingPurpose: '',
+  history: [],
 });
 
 export const toNewCase = (v: CaseFormValues): NewCase => ({
@@ -79,6 +83,7 @@ export const toNewCase = (v: CaseFormValues): NewCase => ({
   stage: v.stage,
   nextHearingDate: v.nextHearingDate ?? undefined,
   nextHearingPurpose: v.nextHearingPurpose,
+  history: v.history ?? [], // drafts saved before this field existed have none
 });
 
 /** The four form sections; the add flow shows one per step, the edit screen shows all of them. */

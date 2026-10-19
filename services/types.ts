@@ -123,6 +123,8 @@ export type NewCase = {
   stage?: string;
   nextHearingDate?: ISODate;
   nextHearingPurpose?: string;
+  /** Past and future listing dates from eCourts, saved as the case's hearing history. */
+  history?: { date: ISODate; purpose?: string }[];
 };
 
 export type CaseFilters = {

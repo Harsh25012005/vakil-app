@@ -3,7 +3,7 @@ import { todayISO } from '@/utils/date';
 import { ApiError, notFound, unwrap } from './api';
 import { casePatchToRow, likePattern, toCase, toCaseType, toClient, toCourt, toHearing, type Row } from './mappers';
 import { currentUserId, supabase } from './supabase';
-import type { Case, CaseFilters, CaseStatus, CaseType, Client, Court, Hearing, NewCase } from './types';
+import type { Case, CaseFilters, CaseStatus, CaseType, Client, Court, Hearing, ISODate, NewCase } from './types';
 
 /** A case with the related records every list row needs. */
 export type CaseRow = Case & { court?: Court; caseType?: CaseType; clients: Client[]; overdue: boolean };
@@ -91,6 +91,24 @@ export async function getCase(id: string): Promise<CaseDetail> {
   return { ...row, hearings: hearings.map(toHearing) };
 }
 
+/**
+ * eCourts listing dates -> hearing rows. Past dates become completed hearings ("adjourned": the
+ * matter was listed and moved on). Upcoming dates stay open. If there is no upcoming date at all,
+ * the most recent past one is left open, so it shows under "Needs update" until its outcome is recorded.
+ * The date create_case already scheduled (nextDate) is skipped so it isn't duplicated.
+ */
+export function historyToHearings(history: { date: ISODate; purpose?: string }[], nextDate: ISODate | undefined, today: ISODate) {
+  const byDate = new Map<ISODate, string | undefined>();
+  for (const h of history) if (h.date && h.date !== nextDate) byDate.set(h.date, h.purpose);
+  const dates = [...byDate.keys()].sort();
+  const hasUpcoming = (!!nextDate && nextDate >= today) || dates.some((d) => d >= today);
+  const lastPast = [...dates].reverse().find((d) => d < today);
+  return dates.map((date) => {
+    const open = date >= today || (!hasUpcoming && date === lastPast);
+    return { date, purpose: byDate.get(date), completed: !open };
+  });
+}
+
 /** Atomic: case + client links + first hearing in one RPC (create_case). */
 export async function createCase(input: NewCase): Promise<CaseRow> {
   const id = await unwrap(
@@ -116,6 +134,23 @@ export async function createCase(input: NewCase): Promise<CaseRow> {
     }),
     'Case',
   );
+  const rows = historyToHearings(input.history ?? [], input.nextHearingDate, todayISO());
+  if (rows.length) {
+    // The hearing trigger recomputes the case's next / last dates from these rows.
+    await unwrap(
+      supabase.from('hearings').insert(
+        rows.map((h) => ({
+          case_id: id,
+          hearing_date: h.date,
+          purpose: h.purpose?.trim() || null,
+          court_room: input.courtRoom?.trim() || null,
+          outcome: h.completed ? 'adjourned' : null,
+          completed_at: h.completed ? `${h.date}T18:00:00+05:30` : null,
+        })),
+      ),
+      'Hearing',
+    );
+  }
   return getCaseRow(id);
 }
 

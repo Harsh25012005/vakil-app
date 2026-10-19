@@ -1,3 +1,4 @@
+import '@/utils/webCrypto'; // must run before the Supabase client is created
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
