@@ -664,8 +664,8 @@ export default function DesignSystem() {
               <CaseCard title="Desai v. Desai" caseNumber="FC/41/2024" court="Family Court" nextDate={null} status="closed" archived onPress={() => {}} />
             </ComponentDoc>
             <ComponentDoc name="Hearing card" cmp="CMP-40">
-              <HearingCard caseTitle="Mehta v. Shah" caseNumber="CS/1234/2026" time="10:30" courtRoom="12" stage="Arguments" lastOutcome="adjourned" state="upcoming" onUpdate={() => {}} />
-              <HearingCard caseTitle="Desai v. Desai" time="14:00" courtRoom="3" state="needs-update" onUpdate={() => {}} />
+              <HearingCard caseTitle="Mehta v. Shah" caseNumber="CS/1234/2026" time="10:30" courtRoom="12" stage="Arguments" lastOutcome="adjourned" state="upcoming" />
+              <HearingCard caseTitle="Desai v. Desai" time="14:00" courtRoom="3" state="done" outcome="adjourned" />
               <HearingCard caseTitle="State v. Patel" time="11:15" courtRoom="7" state="done" outcome="reserved" />
             </ComponentDoc>
             <ComponentDoc name="Client card" cmp="CMP-41">

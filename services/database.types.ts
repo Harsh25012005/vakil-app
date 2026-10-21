@@ -1,7 +1,6 @@
-// Generated from the Supabase schema (backend/supabase/migrations), then trimmed:
-// the Tables<>/TablesInsert<> helper generics are dropped, the computed-field functions
-// (search_text, last_outcome) are omitted from Functions because they are used as columns,
-// and delete_account is listed even though its migration is applied by hand.
+// Generated from the live Supabase schema, then trimmed: the Tables<>/TablesInsert<> helper
+// generics are dropped and the computed-field functions (search_text, last_outcome) are omitted
+// from Functions because they are used as columns.
 // Regenerate after a schema change:
 //   npx supabase gen types typescript --project-id eefcinzxcnrmzlnlfuen > services/database.types.ts
 
@@ -106,6 +105,76 @@ export type Database = {
           },
         ]
       }
+      case_orders: {
+        Row: {
+          advocate_id: string
+          case_id: string
+          created_at: string
+          description: string | null
+          document_id: string | null
+          file_name: string
+          id: string
+          kind: string
+          last_error: string | null
+          last_tried_at: string | null
+          order_date: string
+          tries: number
+          updated_at: string
+        }
+        Insert: {
+          advocate_id?: string
+          case_id: string
+          created_at?: string
+          description?: string | null
+          document_id?: string | null
+          file_name: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          last_tried_at?: string | null
+          order_date: string
+          tries?: number
+          updated_at?: string
+        }
+        Update: {
+          advocate_id?: string
+          case_id?: string
+          created_at?: string
+          description?: string | null
+          document_id?: string | null
+          file_name?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          last_tried_at?: string | null
+          order_date?: string
+          tries?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_orders_advocate_id_fkey"
+            columns: ["advocate_id"]
+            isOneToOne: false
+            referencedRelation: "advocates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_orders_case_fkey"
+            columns: ["advocate_id", "case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["advocate_id", "id"]
+          },
+          {
+            foreignKeyName: "case_orders_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_types: {
         Row: {
           advocate_id: string
@@ -157,7 +226,10 @@ export type Database = {
           created_at: string
           disposal_date: string | null
           disposal_result: string | null
+          ecourts_status: string | null
+          ecourts_synced_at: string | null
           filing_date: string | null
+          filing_number: string | null
           id: string
           judge_name: string | null
           last_hearing_at: string | null
@@ -183,7 +255,10 @@ export type Database = {
           created_at?: string
           disposal_date?: string | null
           disposal_result?: string | null
+          ecourts_status?: string | null
+          ecourts_synced_at?: string | null
           filing_date?: string | null
+          filing_number?: string | null
           id?: string
           judge_name?: string | null
           last_hearing_at?: string | null
@@ -208,7 +283,10 @@ export type Database = {
           created_at?: string
           disposal_date?: string | null
           disposal_result?: string | null
+          ecourts_status?: string | null
+          ecourts_synced_at?: string | null
           filing_date?: string | null
+          filing_number?: string | null
           id?: string
           judge_name?: string | null
           last_hearing_at?: string | null
@@ -292,35 +370,110 @@ export type Database = {
           },
         ]
       }
+      court_directory: {
+        Row: {
+          aliases: string | null
+          bench: string | null
+          complex_code: string | null
+          court_codes: string[]
+          district_code: string | null
+          district_name: string | null
+          id: string
+          initials: string | null
+          level: string
+          name: string
+          search: string | null
+          short_name: string | null
+          sort_rank: number | null
+          state_codes: string[]
+          state_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string | null
+          bench?: string | null
+          complex_code?: string | null
+          court_codes?: string[]
+          district_code?: string | null
+          district_name?: string | null
+          id: string
+          initials?: string | null
+          level: string
+          name: string
+          search?: string | null
+          short_name?: string | null
+          sort_rank?: number | null
+          state_codes?: string[]
+          state_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string | null
+          bench?: string | null
+          complex_code?: string | null
+          court_codes?: string[]
+          district_code?: string | null
+          district_name?: string | null
+          id?: string
+          initials?: string | null
+          level?: string
+          name?: string
+          search?: string | null
+          short_name?: string | null
+          sort_rank?: number | null
+          state_codes?: string[]
+          state_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       courts: {
         Row: {
           advocate_id: string
           city: string
+          complex_code: string | null
+          court_code: string | null
           created_at: string
+          directory_id: string | null
+          district_code: string | null
           id: string
           is_hidden: boolean
+          level: string | null
           name: string
           sort_order: number
+          state_code: string | null
           updated_at: string
         }
         Insert: {
           advocate_id?: string
           city?: string
+          complex_code?: string | null
+          court_code?: string | null
           created_at?: string
+          directory_id?: string | null
+          district_code?: string | null
           id?: string
           is_hidden?: boolean
+          level?: string | null
           name: string
           sort_order?: number
+          state_code?: string | null
           updated_at?: string
         }
         Update: {
           advocate_id?: string
           city?: string
+          complex_code?: string | null
+          court_code?: string | null
           created_at?: string
+          directory_id?: string | null
+          district_code?: string | null
           id?: string
           is_hidden?: boolean
+          level?: string | null
           name?: string
           sort_order?: number
+          state_code?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -329,6 +482,13 @@ export type Database = {
             columns: ["advocate_id"]
             isOneToOne: false
             referencedRelation: "advocates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courts_directory_id_fkey"
+            columns: ["directory_id"]
+            isOneToOne: false
+            referencedRelation: "court_directory"
             referencedColumns: ["id"]
           },
         ]
@@ -379,6 +539,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           file_name: string
+          hearing_id: string | null
           id: string
           mime_type: string
           size_bytes: number
@@ -392,6 +553,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           file_name: string
+          hearing_id?: string | null
           id?: string
           mime_type: string
           size_bytes: number
@@ -405,6 +567,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           file_name?: string
+          hearing_id?: string | null
           id?: string
           mime_type?: string
           size_bytes?: number
@@ -426,7 +589,32 @@ export type Database = {
             referencedRelation: "cases"
             referencedColumns: ["advocate_id", "id"]
           },
+          {
+            foreignKeyName: "documents_hearing_fkey"
+            columns: ["advocate_id", "hearing_id"]
+            isOneToOne: false
+            referencedRelation: "hearings"
+            referencedColumns: ["advocate_id", "id"]
+          },
         ]
+      }
+      ecourts_case_types: {
+        Row: {
+          code: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       fees: {
         Row: {
@@ -475,11 +663,13 @@ export type Database = {
           advocate_id: string
           case_id: string
           completed_at: string | null
+          court_business: string | null
           court_room: string | null
           created_at: string
           hearing_date: string
           hearing_time: string | null
           id: string
+          item_number: string | null
           outcome: string | null
           outcome_notes: string | null
           purpose: string | null
@@ -490,11 +680,13 @@ export type Database = {
           advocate_id?: string
           case_id: string
           completed_at?: string | null
+          court_business?: string | null
           court_room?: string | null
           created_at?: string
           hearing_date: string
           hearing_time?: string | null
           id?: string
+          item_number?: string | null
           outcome?: string | null
           outcome_notes?: string | null
           purpose?: string | null
@@ -504,11 +696,13 @@ export type Database = {
           advocate_id?: string
           case_id?: string
           completed_at?: string | null
+          court_business?: string | null
           court_room?: string | null
           created_at?: string
           hearing_date?: string
           hearing_time?: string | null
           id?: string
+          item_number?: string | null
           outcome?: string | null
           outcome_notes?: string | null
           purpose?: string | null
@@ -754,6 +948,33 @@ export type Database = {
         Returns: Json
       }
       search_all: { Args: { p_q: string }; Returns: Json }
+      search_courts: {
+        Args: { p_limit?: number; p_q: string }
+        Returns: {
+          aliases: string | null
+          bench: string | null
+          complex_code: string | null
+          court_codes: string[]
+          district_code: string | null
+          district_name: string | null
+          id: string
+          initials: string | null
+          level: string
+          name: string
+          search: string | null
+          short_name: string | null
+          sort_rank: number | null
+          state_codes: string[]
+          state_name: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "court_directory"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       today_ist: { Args: never; Returns: string }
     }
     Enums: {

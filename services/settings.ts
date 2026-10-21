@@ -1,6 +1,7 @@
 import { ApiError, notFound, unwrap } from './api';
 import { toCaseType, toCourt } from './mappers';
 import { supabase } from './supabase';
+import { isOwnCourt, ownCourtId, type DirectoryCourt } from './ecourts';
 import type { CaseType, Court } from './types';
 
 /** FR-SET-03: courts and case types are editable lists. Hidden items stay on existing cases but leave pickers. */
@@ -42,6 +43,37 @@ export async function addCourt(name: string, city = ''): Promise<Court> {
   const existing = (await listCourts({ includeHidden: true })).find((c) => c.name.toLowerCase() === n.toLowerCase());
   if (existing) return existing;
   const row = await unwrap(supabase.from('courts').insert({ name: n, city, sort_order: await nextSortOrder('courts') }).select('*').single(), 'Court');
+  return toCourt(row);
+}
+
+/**
+ * The advocate's own court for a court picked from the all-India directory: the one already linked
+ * to it, else one with the same name (linked now), else a new one. Hidden courts come back.
+ */
+export async function courtFromDirectory(d: DirectoryCourt): Promise<Court> {
+  const all = await listCourts({ includeHidden: true });
+  // A court the advocate added themself: that very court (shown again if it was hidden).
+  if (isOwnCourt(d)) {
+    const own = all.find((c) => c.id === ownCourtId(d));
+    if (!own) throw notFound('Court');
+    return own.isHidden ? updateCourt(own.id, { isHidden: false }) : own;
+  }
+  const have = all.find((c) => c.directoryId === d.id) ?? all.find((c) => c.name.toLowerCase() === d.name.toLowerCase());
+  const scope = {
+    directory_id: d.id,
+    level: d.level,
+    // High Courts: the comma-separated states they serve (courts.state_code comment).
+    state_code: d.stateCodes.join(',') || null,
+    district_code: d.districtCode ?? null,
+    court_code: d.courtCodes.join(',') || null,
+    city: d.bench ?? d.districtName ?? '',
+    is_hidden: false,
+  };
+  if (have) {
+    const row = await unwrap(supabase.from('courts').update(scope).eq('id', have.id).select('*').single(), 'Court');
+    return toCourt(row);
+  }
+  const row = await unwrap(supabase.from('courts').insert({ name: clean(d.name).slice(0, 120), sort_order: await nextSortOrder('courts'), ...scope }).select('*').single(), 'Court');
   return toCourt(row);
 }
 

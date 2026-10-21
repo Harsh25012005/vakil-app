@@ -57,7 +57,8 @@ export function Select<T extends string>({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+    // Description too, so a short code ("SCA") finds its case type.
+    return q ? options.filter((o) => o.label.toLowerCase().includes(q) || !!o.description?.toLowerCase().includes(q)) : options;
   }, [options, query]);
 
   const close = () => {

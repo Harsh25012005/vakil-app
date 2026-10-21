@@ -1,5 +1,6 @@
 import { caseNumberSchema, cnrSchema } from '@vakil/shared';
-import type { Case, NewCase } from '@/services/types';
+import type { EcourtsCase } from '@/services/ecourts';
+import type { Case, EcourtsOrderRef, NewCase } from '@/services/types';
 
 /** Form state for adding / editing a case. Everything is a string or null so inputs bind directly. */
 export type CaseFormValues = {
@@ -19,8 +20,14 @@ export type CaseFormValues = {
   stage: string;
   nextHearingDate: string | null;
   nextHearingPurpose: string;
+  filingNumber: string;
+  ecourtsStatus: string;
+  /** Set when the form was filled from eCourts. */
+  ecourtsSyncedAt: string | null;
   /** Hearing history fetched from eCourts (Add case only). */
-  history: { date: string; purpose?: string }[];
+  history: { date: string; purpose?: string; business?: string }[];
+  /** Orders and judgments on eCourts (Add case only). */
+  orders: EcourtsOrderRef[];
 };
 
 export type CaseFormErrors = Partial<Record<keyof CaseFormValues, string>>;
@@ -42,7 +49,11 @@ export const emptyCaseForm = (defaults: Partial<CaseFormValues> = {}): CaseFormV
   stage: '',
   nextHearingDate: null,
   nextHearingPurpose: '',
+  filingNumber: '',
+  ecourtsStatus: '',
+  ecourtsSyncedAt: null,
   history: [],
+  orders: [],
   ...defaults,
 });
 
@@ -63,7 +74,11 @@ export const formFromCase = (c: Case): CaseFormValues => ({
   stage: c.stage ?? '',
   nextHearingDate: c.nextHearingAt,
   nextHearingPurpose: '',
+  filingNumber: c.filingNumber ?? '',
+  ecourtsStatus: c.ecourtsStatus ?? '',
+  ecourtsSyncedAt: c.ecourtsSyncedAt ?? null,
   history: [],
+  orders: [],
 });
 
 export const toNewCase = (v: CaseFormValues): NewCase => ({
@@ -83,8 +98,46 @@ export const toNewCase = (v: CaseFormValues): NewCase => ({
   stage: v.stage,
   nextHearingDate: v.nextHearingDate ?? undefined,
   nextHearingPurpose: v.nextHearingPurpose,
+  filingNumber: v.filingNumber ?? '',
+  ecourtsStatus: v.ecourtsStatus ?? '',
+  ecourtsSyncedAt: v.ecourtsSyncedAt ?? undefined,
   history: v.history ?? [], // drafts saved before this field existed have none
+  orders: v.orders ?? [],
 });
+
+/**
+ * The form fields an eCourts case fills in. Only an upcoming date becomes the next hearing; a past
+ * one is history, not something to attend. Court and case type are resolved by the caller.
+ */
+export function formPatchFromEcourts(d: EcourtsCase, v: CaseFormValues, today: string): Partial<CaseFormValues> {
+  const upcoming = d.nextHearingDate && d.nextHearingDate >= today ? d.nextHearingDate : undefined;
+  const petitioner = d.petitioners[0] ?? '';
+  const respondent = d.respondents[0] ?? '';
+  const patch: Partial<CaseFormValues> = {
+    cnr: d.cnr,
+    caseNumber: d.caseNumber ?? v.caseNumber,
+    caseYear: d.caseYear ? String(d.caseYear) : v.caseYear,
+    filingNumber: d.filingNumber ?? v.filingNumber,
+    filingDate: d.filingDate ?? v.filingDate,
+    petitioner: petitioner || v.petitioner,
+    respondent: respondent || v.respondent,
+    judge: d.judge ?? v.judge,
+    courtRoom: d.courtNo ?? v.courtRoom,
+    stage: d.stage ?? v.stage,
+    ecourtsStatus: d.status ?? v.ecourtsStatus,
+    ecourtsSyncedAt: new Date().toISOString(),
+    nextHearingDate: upcoming ?? v.nextHearingDate,
+    nextHearingPurpose: upcoming ? (d.hearings.find((h) => h.date === upcoming)?.purpose ?? d.stage ?? '') : v.nextHearingPurpose,
+    history: d.hearings.map((h) => ({ date: h.date, purpose: h.purpose, business: h.business })),
+    orders: d.orders,
+  };
+  if (!v.title.trim() && (petitioner || respondent)) {
+    // "A v. B" with "and others" when eCourts lists more parties.
+    const side = (first: string, all: string[]) => (all.length > 1 ? `${first} and others` : first);
+    patch.title = [petitioner && side(petitioner, d.petitioners), respondent && side(respondent, d.respondents)].filter(Boolean).join(' v. ');
+  }
+  return patch;
+}
 
 /** The four form sections; the add flow shows one per step, the edit screen shows all of them. */
 export type CaseSection = 'basics' | 'court' | 'parties' | 'stage';
@@ -106,9 +159,6 @@ export function validateCaseForm(v: CaseFormValues, sections: CaseSection[]): Ca
   if (sections.includes('court')) {
     if (!v.courtId) e.courtId = 'Select a court';
   }
-  if (sections.includes('parties')) {
-    if (v.clientIds.length === 0) e.clientIds = 'Add at least one client';
-  }
   return e;
 }
 
@@ -125,6 +175,7 @@ export const toCasePatch = (v: CaseFormValues) => {
     caseNumber: n.caseNumber?.trim() || undefined,
     caseYear: n.caseYear,
     cnr: n.cnr?.trim().toUpperCase() || undefined,
+    filingNumber: n.filingNumber?.trim() || undefined,
     caseTypeId: n.caseTypeId,
     courtId: n.courtId,
     courtRoom: n.courtRoom?.trim() || undefined,
@@ -138,7 +189,7 @@ export const toCasePatch = (v: CaseFormValues) => {
   };
 };
 
-/** The single case form: every field is required (title, CNR, type, court, filing date, client). */
+/** The single case form: title, CNR, type, court and filing date are required; clients are optional. */
 export function validateCase(v: CaseFormValues): CaseFormErrors {
   const e: CaseFormErrors = {};
   if (!v.title.trim()) e.title = 'Enter the case title';
@@ -147,6 +198,5 @@ export function validateCase(v: CaseFormValues): CaseFormErrors {
   if (!v.caseTypeId) e.caseTypeId = 'Select a case type';
   if (!v.courtId) e.courtId = 'Select a court';
   if (!v.filingDate) e.filingDate = 'Select the filing date';
-  if (v.clientIds.length === 0) e.clientIds = 'Add at least one client';
   return e;
 }

@@ -51,7 +51,6 @@ export function NotificationsSection() {
       </Card>
 
       <Card>
-        <Toggle label="Needs-update nudge" description="If a hearing has no outcome recorded by evening." value={prefs.needsUpdateEnabled} onValueChange={(v) => change({ needsUpdateEnabled: v })} />
       </Card>
     </View>
   );

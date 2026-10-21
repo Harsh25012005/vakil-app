@@ -13,7 +13,7 @@ import { cn } from '@/utils/cn';
 const SLIDES: { art: () => React.JSX.Element; title: string; body: string }[] = [
   { art: ReminderArt, title: 'Never miss a hearing', body: 'Every case shows its next date, and a reminder reaches you the evening before and the morning of.' },
   { art: QuickAddArt, title: 'Add a case in seconds', body: 'One short form with smart defaults. Your courts and case types are remembered.' },
-  { art: OutcomeArt, title: 'Update right outside the courtroom', body: 'Record what happened and the next date in under 30 seconds, even on a weak signal.' },
+  { art: OutcomeArt, title: 'Updates from the court', body: 'Next dates, what happened at each hearing and new orders come in from eCourts by themselves.' },
 ];
 
 export default function Welcome() {

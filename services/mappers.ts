@@ -1,7 +1,7 @@
 import type { DisposalResult, DocumentCategory, HearingOutcome, Theme } from '@vakil/shared';
 import { DEFAULT_REMINDERS } from '@vakil/shared';
 import type { Database } from './database.types';
-import type { Advocate, AppNotification, Case, CaseDocument, CaseStatus, CaseType, Client, Court, Hearing, NotificationPrefs, Note, Task } from './types';
+import type { Advocate, AppNotification, Case, CaseDocument, CaseOrder, CaseStatus, CaseType, Client, Court, CourtLevel, Hearing, NotificationPrefs, Note, Task } from './types';
 
 /**
  * Database rows are snake_case and use null; the app's domain types (services/types.ts) are
@@ -15,7 +15,16 @@ const opt = <T>(v: T | null | undefined): T | undefined => (v == null ? undefine
 /** Postgres time is 'HH:MM:SS'; the app uses 'HH:mm'. */
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : undefined);
 
-export const toCourt = (r: Row<'courts'>): Court => ({ id: r.id, name: r.name, city: r.city, isHidden: r.is_hidden });
+export const toCourt = (r: Row<'courts'>): Court => ({
+  id: r.id,
+  name: r.name,
+  city: r.city,
+  isHidden: r.is_hidden,
+  directoryId: opt(r.directory_id),
+  level: opt(r.level) as CourtLevel | undefined,
+  stateCode: opt(r.state_code),
+  districtCode: opt(r.district_code),
+});
 export const toCaseType = (r: Row<'case_types'>): CaseType => ({ id: r.id, name: r.name, isHidden: r.is_hidden });
 
 export const toClient = (r: Row<'clients'>): Client => ({
@@ -45,6 +54,7 @@ export const toCase = (r: Row<'cases'>, clientIds: string[]): Case => ({
   caseNumber: opt(r.case_number),
   caseYear: opt(r.case_year),
   cnr: opt(r.cnr_number),
+  filingNumber: opt(r.filing_number),
   caseTypeId: r.case_type_id,
   courtId: r.court_id,
   courtRoom: opt(r.court_room),
@@ -56,6 +66,8 @@ export const toCase = (r: Row<'cases'>, clientIds: string[]): Case => ({
   clientIds,
   stage: opt(r.stage),
   status: r.status as CaseStatus,
+  ecourtsStatus: opt(r.ecourts_status),
+  ecourtsSyncedAt: opt(r.ecourts_synced_at),
   disposalDate: opt(r.disposal_date),
   disposalResult: opt(r.disposal_result) as DisposalResult | undefined,
   nextHearingAt: r.next_hearing_at,
@@ -71,6 +83,7 @@ const CASE_COLUMNS = {
   caseNumber: 'case_number',
   caseYear: 'case_year',
   cnr: 'cnr_number',
+  filingNumber: 'filing_number',
   caseTypeId: 'case_type_id',
   courtId: 'court_id',
   courtRoom: 'court_room',
@@ -83,6 +96,8 @@ const CASE_COLUMNS = {
   status: 'status',
   disposalDate: 'disposal_date',
   disposalResult: 'disposal_result',
+  ecourtsStatus: 'ecourts_status',
+  ecourtsSyncedAt: 'ecourts_synced_at',
   archivedAt: 'archived_at',
 } as const satisfies Partial<Record<keyof Case, keyof Tables['cases']['Update']>>;
 
@@ -102,6 +117,8 @@ export const toHearing = (r: Row<'hearings'>): Hearing => ({
   time: hhmm(r.hearing_time),
   purpose: opt(r.purpose),
   courtRoom: opt(r.court_room),
+  itemNumber: opt(r.item_number),
+  courtBusiness: opt(r.court_business),
   outcome: opt(r.outcome) as HearingOutcome | undefined,
   outcomeNotes: opt(r.outcome_notes),
   completedAt: opt(r.completed_at),
@@ -113,13 +130,24 @@ export const hearingToRow = (h: Partial<Omit<Hearing, 'id' | 'caseId'>>) => {
   if ('time' in h) out.hearing_time = h.time || null;
   if ('purpose' in h) out.purpose = h.purpose?.trim() || null;
   if ('courtRoom' in h) out.court_room = h.courtRoom?.trim() || null;
+  if ('itemNumber' in h) out.item_number = h.itemNumber?.trim() || null;
   if ('outcome' in h) out.outcome = h.outcome ?? null;
   if ('outcomeNotes' in h) out.outcome_notes = h.outcomeNotes ?? null;
   if ('completedAt' in h) out.completed_at = h.completedAt ?? null;
   return out;
 };
 
-export const toNote = (r: Row<'notes'>): Note => ({
+export const toCaseOrder = (r: Row<'case_orders'>): CaseOrder => ({
+  id: r.id,
+  caseId: r.case_id,
+  date: r.order_date,
+  kind: r.kind === 'judgment' ? 'judgment' : 'interim',
+  description: opt(r.description),
+  fileName: r.file_name,
+  lastError: opt(r.last_error),
+});
+
+export const toNote =(r: Row<'notes'>): Note => ({
   id: r.id,
   caseId: r.case_id,
   title: opt(r.title),

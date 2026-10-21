@@ -1,6 +1,5 @@
 import type { HearingOutcome } from '@vakil/shared';
 import { ApiError, notFound, unwrap } from './api';
-import { todayISO } from '@/utils/date';
 import { CASE_SELECT, toCaseRow, type CaseJoined, type CaseRow } from './cases';
 import { hearingToRow, toHearing, type Row } from './mappers';
 import { supabase } from './supabase';
@@ -32,19 +31,14 @@ export async function listHearings(from: ISODate, to: ISODate): Promise<HearingR
   return (rows as unknown as HearingJoined[]).map(toHearingRow);
 }
 
-/** FR-HEAR-07: a hearing whose date passed with no outcome "needs update". */
-export async function listNeedsUpdate(): Promise<HearingRow[]> {
-  const rows = await unwrap(sorted(liveHearings().is('completed_at', null).lte('hearing_date', todayISO())));
-  return (rows as unknown as HearingJoined[]).map(toHearingRow);
-}
-
 export async function getHearing(id: string): Promise<HearingRow> {
   const row = await unwrap(supabase.from('hearings').select(HEARING_SELECT).eq('id', id).maybeSingle(), 'Hearing');
   if (!row) throw notFound('Hearing');
   return toHearingRow(row as unknown as HearingJoined);
 }
 
-export type HearingInput = { date: ISODate; time?: string; purpose?: string; courtRoom?: string };
+/** outcomeNotes: the hearing's description (what happened, what to prepare). */
+export type HearingInput = { date: ISODate; time?: string; purpose?: string; courtRoom?: string; itemNumber?: string; outcomeNotes?: string };
 
 /** next_hearing_at / last_hearing_at on the case are updated by a database trigger. */
 export async function addHearing(caseId: string, input: HearingInput): Promise<Hearing> {
@@ -76,32 +70,6 @@ export async function deleteHearing(id: string): Promise<Hearing> {
   const row = await unwrap(supabase.from('hearings').delete().eq('id', id).select('*').maybeSingle(), 'Hearing');
   if (!row) throw notFound('Hearing');
   return toHearing(row);
-}
-
-export type OutcomeInput = {
-  outcome: HearingOutcome;
-  notes?: string;
-  /** Skipped for "Order reserved" / "Disposed" (FR-HEAR-03/04). */
-  next?: { date: ISODate; purpose?: string; time?: string };
-};
-
-/**
- * Closes the hearing and creates the next one atomically (FR-HEAR-04) via the record_outcome RPC.
- * "Order reserved" sets the case to Reserved for order.
- */
-export async function recordOutcome(id: string, input: OutcomeInput) {
-  const res = (await unwrap(
-    supabase.rpc('record_outcome', {
-      p_hearing_id: id,
-      p_outcome: input.outcome,
-      p_notes: input.notes?.trim() || undefined,
-      p_next_date: input.next?.date || undefined,
-      p_next_time: input.next?.time || undefined,
-      p_next_purpose: input.next?.purpose?.trim() || undefined,
-    }),
-    'Hearing',
-  )) as unknown as { hearing: Row<'hearings'>; next: Row<'hearings'> | null; caseId: string };
-  return { hearing: toHearing(res.hearing), next: res.next ? toHearing(res.next) : undefined, caseId: res.caseId };
 }
 
 /** Undo for a deleted hearing (FRS 9.3): puts the exact row back, outcome included. */

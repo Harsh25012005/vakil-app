@@ -1,9 +1,8 @@
-import { DEFAULT_REMINDERS } from '@vakil/shared';
 import { addDays } from 'date-fns';
 import { Platform } from 'react-native';
 import { formatTime, fromISODate, toISODate, today } from '@/utils/date';
 import { loadNotifications } from '@/utils/permissions';
-import { listHearings, listNeedsUpdate, type HearingRow } from './hearings';
+import { listHearings, type HearingRow } from './hearings';
 import { listTasks } from './extras';
 import type { ISODate, NotificationPrefs, Task } from './types';
 
@@ -16,7 +15,6 @@ import type { ISODate, NotificationPrefs, Task } from './types';
  *  - evening-before digest  (prefs.eveningTime, default 8 PM): tomorrow's hearings
  *  - morning-of digest      (prefs.morningTime, default 8 AM): today's hearings, in time order
  *  - 1 hour before a hearing that has a time (with the morning reminders)
- *  - needs-update nudge     (6 PM): hearings from today or earlier with no outcome yet
  *  - tasks due              (morning time): open tasks due that day
  */
 
@@ -41,11 +39,10 @@ const describe = (h: HearingRow) => [h.case.court?.name, h.time ? formatTime(h.t
 
 const byTime = (a: HearingRow, b: HearingRow) => (a.time ?? '99:99').localeCompare(b.time ?? '99:99');
 
-function plan(prefs: NotificationPrefs, hearings: HearingRow[], overdue: HearingRow[], tasks: Task[]): Planned[] {
+function plan(prefs: NotificationPrefs, hearings: HearingRow[], tasks: Task[]): Planned[] {
   const out: Planned[] = [];
   const t0 = today();
   const days: ISODate[] = Array.from({ length: DAYS_AHEAD + 1 }, (_, i) => toISODate(addDays(t0, i)));
-  const todayISO = days[0]!;
 
   for (const day of days) {
     const list = hearings.filter((h) => h.date === day && !h.completedAt).sort(byTime);
@@ -78,22 +75,6 @@ function plan(prefs: NotificationPrefs, hearings: HearingRow[], overdue: Hearing
             url: `/case/${h.caseId}`,
           });
         }
-      }
-    }
-
-    if (prefs.needsUpdateEnabled) {
-      // Hearings that will still be open this evening: today's, plus any already overdue (only today).
-      const pending = day === todayISO ? [...overdue.filter((h) => h.date < todayISO), ...list] : list;
-      if (pending.length) {
-        out.push({
-          at: at(day, DEFAULT_REMINDERS.needsUpdate),
-          title: plural(pending.length, 'hearing needs an update', 'hearings need an update'),
-          body:
-            pending.length === 1
-              ? `Record what happened in ${pending[0]!.case.title} and set the next date.`
-              : 'Record the outcomes and next dates so your diary stays correct.',
-          url: '/today',
-        });
       }
     }
 
@@ -147,13 +128,13 @@ async function rebuild(prefs: NotificationPrefs | undefined) {
     // Load first: if this fails (offline), the previous schedule stays in place.
     const from = toISODate(today());
     const to = toISODate(addDays(today(), DAYS_AHEAD));
-    const [hearings, overdue, tasks] = await Promise.all([listHearings(from, to), listNeedsUpdate(), listTasks()]);
+    const [hearings, tasks] = await Promise.all([listHearings(from, to), listTasks()]);
 
     if (Platform.OS === 'android') {
       await N.setNotificationChannelAsync(CHANNEL_ID, { name: 'Hearing reminders', importance: N.AndroidImportance.HIGH });
     }
     await N.cancelAllScheduledNotificationsAsync();
-    for (const p of plan(prefs, hearings, overdue, tasks)) {
+    for (const p of plan(prefs, hearings, tasks)) {
       await N.scheduleNotificationAsync({
         content: { title: p.title, body: p.body, data: { url: p.url }, sound: 'default' },
         trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: p.at, channelId: CHANNEL_ID },

@@ -29,6 +29,8 @@ export type BottomSheetProps = {
   snapPoints?: (string | number)[];
   footer?: ReactNode;
   showClose?: boolean;
+  /** Lifts the sheet above the keyboard (default). Off for full-height lists that scroll on their own. */
+  avoidKeyboard?: boolean;
   children: ReactNode;
 };
 
@@ -42,7 +44,7 @@ const CLOSE_VELOCITY = 0.9; // px/ms
  * Verified on an Android emulator, where a portal-based sheet rendered behind the native screen
  * container, and Reanimated shared-value styles inside a Modal never painted.
  */
-export function BottomSheet({ open, onClose, title, snapPoints, footer, showClose = true, children }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, title, snapPoints, footer, showClose = true, avoidKeyboard = true, children }: BottomSheetProps) {
   const { colors, scheme } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenH } = useWindowDimensions();
@@ -103,7 +105,7 @@ export function BottomSheet({ open, onClose, title, snapPoints, footer, showClos
 
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <KeyboardAvoidingView behavior="padding" enabled={avoidKeyboard} style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay, opacity: scrim }]}>
           <Pressable accessibilityLabel="Close sheet" onPress={onClose} style={{ flex: 1 }} />
         </Animated.View>

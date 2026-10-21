@@ -8,6 +8,7 @@ import { KeyValueRow } from '@/components/ui/KeyValueRow';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Text } from '@/components/ui/Text';
 import { useRouter } from 'expo-router';
+import { CaseOrders } from './CaseOrders';
 import { ClientCard } from './ClientCard';
 import { useToast } from '@/components/ui/Toast';
 
@@ -16,6 +17,7 @@ export function CaseOverviewTab({ c }: { c: CaseDetail }) {
   const router = useRouter();
   const toast = useToast();
   const last = c.hearings.find((h) => h.completedAt);
+  const next = [...c.hearings].filter((h) => !h.completedAt).sort((a, b) => a.date.localeCompare(b.date))[0];
 
   const contact = async (kind: 'call' | 'wa', phone: string) => {
     const ok = await (kind === 'call' ? callPhone(phone) : whatsAppPhone(phone));
@@ -39,14 +41,33 @@ export function CaseOverviewTab({ c }: { c: CaseDetail }) {
       ) : null}
 
       <View>
-        <SectionHeader title="Case details" first />
+        <SectionHeader title="Court" first />
         <Card padded={false} className="px-4">
-          <KeyValueRow label="Case type" value={c.caseType?.name} divider />
           <KeyValueRow label="Court" value={c.court?.name} divider />
-          <KeyValueRow label="CNR" value={c.cnr} copyable tabular divider />
-          <KeyValueRow label="Filed" value={c.filingDate ? formatShortDate(c.filingDate) : undefined} />
+          <KeyValueRow label="Court room" value={next?.courtRoom ?? c.courtRoom} tabular divider />
+          <KeyValueRow label="Judge" value={c.judge} divider />
+          {next?.itemNumber ? <KeyValueRow label="Item no." value={next.itemNumber} tabular divider /> : null}
+          <KeyValueRow label="Next hearing" value={next ? [formatShortDate(next.date), next.purpose].filter(Boolean).join(' · ') : undefined} divider />
+          <KeyValueRow label="Stage" value={c.stage} />
         </Card>
       </View>
+
+      <View>
+        <SectionHeader title="Case details" />
+        <Card padded={false} className="px-4">
+          <KeyValueRow label="Case no." value={[c.caseNumber, c.caseNumber && c.caseYear && !c.caseNumber.includes(String(c.caseYear)) ? `/${c.caseYear}` : ''].join('') || undefined} copyable tabular divider />
+          {c.filingNumber && c.filingNumber !== c.caseNumber ? <KeyValueRow label="Filing no." value={c.filingNumber} copyable tabular divider /> : null}
+          <KeyValueRow label="Case type" value={c.caseType?.name} divider />
+          <KeyValueRow label="CNR" value={c.cnr} copyable tabular divider />
+          <KeyValueRow label="Filed" value={c.filingDate ? formatShortDate(c.filingDate) : undefined} divider />
+          {c.ecourtsStatus ? <KeyValueRow label="eCourts status" value={c.ecourtsStatus} divider /> : null}
+          <KeyValueRow label="Petitioner" value={c.petitioner} divider />
+          <KeyValueRow label="Respondent" value={c.respondent} divider={!!c.oppositeCounsel} />
+          {c.oppositeCounsel ? <KeyValueRow label="Opposite counsel" value={c.oppositeCounsel} /> : null}
+        </Card>
+      </View>
+
+      <CaseOrders c={c} />
 
       <View className="gap-3">
         <SectionHeader title={c.clients.length > 1 ? 'Clients' : 'Client'} />

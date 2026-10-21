@@ -6,9 +6,8 @@ import { RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorState } from '@/components/ErrorState';
 import { HearingItem } from '@/components/HearingItem';
-import { OutcomeSheet } from '@/components/OutcomeSheet';
+import { TodayPdfButton } from '@/components/TodayPdfButton';
 import { Avatar } from '@/components/ui/Avatar';
-import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { IconButton } from '@/components/ui/IconButton';
@@ -17,14 +16,12 @@ import { PressableScale } from '@/components/ui/PressableScale';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
-import { useToast } from '@/components/ui/Toast';
 import { WeekStrip } from '@/components/ui/WeekStrip';
 import { useTabBarInset } from '@/components/ui/TabBar';
 import { useAuth } from '@/hooks/useAuth';
 import { useHearings } from '@/hooks/useCases';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useTheme } from '@/hooks/useTheme';
-import type { HearingRow } from '@/services/hearings';
 import { formatLongDate, formatTime, toISODate, today } from '@/utils/date';
 
 // SCR-09 Home dashboard: "What is listed today?" answered in five seconds.
@@ -35,7 +32,6 @@ const greeting = () => {
 
 export default function Home() {
   const router = useRouter();
-  const toast = useToast();
   const insets = useSafeAreaInsets();
   const tabInset = useTabBarInset();
   const { colors } = useTheme();
@@ -45,7 +41,6 @@ export default function Home() {
   const todayISO = toISODate(today());
   const [day, setDay] = useState(todayISO);
   const dayHearings = useHearings(day, day);
-  const [updating, setUpdating] = useState<HearingRow | null>(null);
 
   const firstName = useMemo(() => advocate?.fullName.replace(/^adv\.?\s*/i, '').split(' ')[0] || 'there', [advocate?.fullName]);
   const d = dash.data;
@@ -115,18 +110,10 @@ export default function Home() {
                     fullWidth
                     onPress={() => (todayRows.length ? router.push('/today') : router.push('/calendar'))}
                   />
+                  <TodayPdfButton rows={todayRows} date={todayISO} variant="tonal" fullWidth className="-mt-2" />
                 </Card>
               )}
 
-              {d && d.needsUpdate > 0 ? (
-                <Banner
-                  tone="warning"
-                  title={`${d.needsUpdate} ${d.needsUpdate === 1 ? 'hearing needs' : 'hearings need'} an update`}
-                  message="Record the outcome so your diary stays correct."
-                  actionLabel="Update now"
-                  onAction={() => router.push('/today')}
-                />
-              ) : null}
             </View>
 
             {/* Quick actions */}
@@ -153,7 +140,7 @@ export default function Home() {
               ) : dayHearings.isError ? (
                 <ErrorState error={dayHearings.error} onRetry={() => dayHearings.refetch()} />
               ) : dayHearings.data && dayHearings.data.length > 0 ? (
-                dayHearings.data.map((h) => <HearingItem key={h.id} hearing={h} onUpdate={setUpdating} />)
+                dayHearings.data.map((h) => <HearingItem key={h.id} hearing={h} />)
               ) : (
                 <Card variant="flat" className="items-center gap-1 py-8">
                   <Text variant="title">Nothing listed</Text>
@@ -166,14 +153,6 @@ export default function Home() {
           </>
         )}
       </ScrollView>
-
-      <OutcomeSheet
-        hearing={updating}
-        onClose={() => setUpdating(null)}
-        onSaved={({ caseId, outcome }) => {
-          if (outcome === 'disposed') toast.show({ type: 'info', message: 'Mark the whole case as disposed?', actionLabel: 'Open case', onAction: () => router.push({ pathname: '/case/[id]', params: { id: caseId } }), duration: 6000 });
-        }}
-      />
     </View>
   );
 }

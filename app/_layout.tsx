@@ -21,6 +21,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppLock, watchAppLock } from '@/hooks/useAppLock';
 import { useReminders } from '@/hooks/useReminders';
+import { useAutoCourtSync } from '@/hooks/useCases';
 import { ThemeProvider, useTheme } from '@/hooks/useTheme';
 
 SplashScreen.preventAutoHideAsync();
@@ -39,6 +40,8 @@ function AppStack() {
   const onboarded = signedIn && !!advocate?.onboardedAt;
   const locked = useAppLock((s) => s.locked);
   useReminders(onboarded);
+  // Cases update themselves from the court: once per app start, at most daily per case.
+  useAutoCourtSync(onboarded);
 
   return (
     <>

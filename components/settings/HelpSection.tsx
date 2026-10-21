@@ -14,7 +14,7 @@ import { emailTo } from '@/utils/contact';
 import { Linking } from 'react-native';
 
 const FAQ = [
-  { q: 'How do I record what happened at a hearing?', a: 'Open Today or the case, tap "Record outcome", choose the result and set the next date.' },
+  { q: 'How do I record what happened at a hearing?', a: "You don't need to. For cases with a CNR, the next date, what the court recorded and new orders come in from eCourts by themselves. Tap Refresh from eCourts on a case to check now." },
   { q: 'Will I still get reminders without internet?', a: 'Yes. Reminders are scheduled on your phone, so they fire even offline.' },
   { q: 'Can I hide a court I no longer use?', a: 'Yes. More > Courts lets you hide, rename and reorder them. Old cases keep their court.' },
 ];

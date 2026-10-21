@@ -1,6 +1,8 @@
 import { IconTrash } from '@tabler/icons-react-native';
 import { useEffect, useState } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { Text } from '@/components/ui/Text';
+import { TextArea } from '@/components/ui/TextArea';
 import { useAddHearing, useDeleteHearing, useRestoreHearing, useUpdateHearing } from '@/hooks/useCases';
 import { errorMessage } from '@/services/api';
 import type { Hearing } from '@/services/types';
@@ -32,6 +34,8 @@ export function HearingFormSheet({ caseId, target, defaultRoom, onClose }: Props
   const [time, setTime] = useState<string | null>(null);
   const [purpose, setPurpose] = useState('');
   const [room, setRoom] = useState('');
+  const [item, setItem] = useState('');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
@@ -40,6 +44,8 @@ export function HearingFormSheet({ caseId, target, defaultRoom, onClose }: Props
     setTime(editing?.time ?? null);
     setPurpose(editing?.purpose ?? '');
     setRoom(editing?.courtRoom ?? defaultRoom ?? '');
+    setItem(editing?.itemNumber ?? '');
+    setNotes(editing?.outcomeNotes ?? '');
     setError(undefined);
   }, [target]);
 
@@ -48,7 +54,7 @@ export function HearingFormSheet({ caseId, target, defaultRoom, onClose }: Props
       setError('Pick a date');
       return;
     }
-    const input = { date, time: time ?? undefined, purpose: purpose.trim() || undefined, courtRoom: room.trim() || undefined };
+    const input = { date, time: time ?? undefined, purpose: purpose.trim() || undefined, courtRoom: room.trim() || undefined, itemNumber: item.trim() || undefined, outcomeNotes: notes.trim() || undefined };
     try {
       if (editing) await update.mutateAsync({ id: editing.id, patch: input });
       else await add.mutateAsync(input);
@@ -82,7 +88,19 @@ export function HearingFormSheet({ caseId, target, defaultRoom, onClose }: Props
         <DatePicker label="Date" required value={date} onChange={(d) => (setDate(d), setError(undefined))} error={error} warnIfPast />
         <TimePicker label="Time" value={time} onChange={setTime} helper="Optional. Shown on your agenda." />
         <TextField label="Purpose" value={purpose} onChangeText={setPurpose} placeholder="e.g. Arguments, evidence" returnKeyType="next" />
-        <TextField label="Court room / hall" value={room} onChangeText={setRoom} placeholder="e.g. 12" returnKeyType="done" />
+        <TextField label="Court room / hall" value={room} onChangeText={setRoom} placeholder="e.g. 12" returnKeyType="next" />
+        <TextField label="Item no. on cause list" value={item} onChangeText={(v) => setItem(v.slice(0, 20))} placeholder="e.g. 34" helper="Optional. Shown in Today's hearings and its PDF." returnKeyType="next" />
+        {editing?.courtBusiness ? (
+          <View className="gap-1 rounded-lg bg-surface px-3 py-2.5">
+            <Text variant="caption" tone="tertiary">
+              Recorded by the court on eCourts
+            </Text>
+            <Text variant="body-sm" tone="secondary">
+              {editing.courtBusiness}
+            </Text>
+          </View>
+        ) : null}
+        <TextArea label="Description" value={notes} onChangeText={setNotes} placeholder="What happened, what the judge said, what to prepare next" maxLength={2000} helper="Optional. Shown under this hearing." />
         {editing ? <Button label="Delete hearing" variant="destructive-ghost" leadingIcon={IconTrash} onPress={del} loading={remove.isPending} fullWidth haptic="warning" /> : null}
       </ScrollView>
     </BottomSheet>

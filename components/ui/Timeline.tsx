@@ -1,5 +1,5 @@
 import type { HearingOutcome } from '@vakil/shared';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { cn } from '@/utils/cn';
@@ -17,6 +17,10 @@ export type TimelineItem = {
   purpose?: string;
   outcome?: HearingOutcome;
   notes?: string;
+  /** What happened that day, as the court recorded it (eCourts business of the day). */
+  description?: string;
+  /** Shown under the row, outside its press target (e.g. that day's order documents). */
+  footer?: ReactNode;
   onPress?: () => void;
 };
 
@@ -61,7 +65,7 @@ function Node({ phase, outcome }: { phase: Phase; outcome?: HearingOutcome }) {
 
 function Row({ item, phase, last }: { item: TimelineItem; phase: Phase; last: boolean }) {
   const body = (
-    <View className="flex-1 gap-1.5 pb-6">
+    <View className="gap-1.5">
       <View className="flex-row items-center gap-2">
         <Text variant="title" tabular tone={phase === 'future' ? 'secondary' : 'default'}>
           {formatShortDate(item.date)}
@@ -78,8 +82,19 @@ function Row({ item, phase, last }: { item: TimelineItem; phase: Phase; last: bo
         </Text>
       ) : null}
       {item.outcome ? <OutcomePill outcome={item.outcome} /> : null}
+      {item.description ? (
+        <Text variant="body-sm" tone="secondary" numberOfLines={4}>
+          <Text variant="body-sm" tone="tertiary">
+            {'Court: '}
+          </Text>
+          {item.description}
+        </Text>
+      ) : null}
       {item.notes ? (
-        <Text variant="body-sm" tone="tertiary" numberOfLines={2}>
+        <Text variant="body-sm" tone="secondary" numberOfLines={4}>
+          <Text variant="body-sm" tone="tertiary">
+            {'Notes: '}
+          </Text>
           {item.notes}
         </Text>
       ) : null}
@@ -92,13 +107,16 @@ function Row({ item, phase, last }: { item: TimelineItem; phase: Phase; last: bo
         <Node phase={phase} outcome={item.outcome} />
         {!last ? <View className={cn('mt-1 w-0.5 flex-1 rounded-full', phase === 'future' ? 'bg-border' : 'bg-border-strong')} /> : null}
       </View>
-      {item.onPress ? (
-        <PressableScale onPress={item.onPress} className="flex-1" accessibilityRole="button">
-          {body}
-        </PressableScale>
-      ) : (
-        body
-      )}
+      <View className="flex-1 gap-2 pb-6">
+        {item.onPress ? (
+          <PressableScale onPress={item.onPress} accessibilityRole="button">
+            {body}
+          </PressableScale>
+        ) : (
+          body
+        )}
+        {item.footer}
+      </View>
     </View>
   );
 }

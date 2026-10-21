@@ -26,7 +26,9 @@ export type Advocate = {
   onboardedAt: string | null;
 };
 
-export type Court = { id: string; name: string; city: string; isHidden: boolean };
+/** level / stateCode / districtCode: eCourts scope, set when the court was picked from the court directory. */
+export type Court = { id: string; name: string; city: string; isHidden: boolean; directoryId?: string; level?: CourtLevel; stateCode?: string; districtCode?: string };
+export type CourtLevel = 'SC' | 'HC' | 'DC' | 'TRIBUNAL' | 'OTHER';
 export type CaseType = { id: string; name: string; isHidden: boolean };
 
 export type Client = {
@@ -45,6 +47,7 @@ export type Case = {
   caseNumber?: string;
   caseYear?: number;
   cnr?: string;
+  filingNumber?: string;
   caseTypeId: string;
   courtId: string;
   courtRoom?: string;
@@ -56,6 +59,9 @@ export type Case = {
   clientIds: string[];
   stage?: string;
   status: CaseStatus;
+  /** Status as eCourts shows it ("Pending"), and when the case was last read from eCourts. */
+  ecourtsStatus?: string;
+  ecourtsSyncedAt?: string;
   disposalDate?: ISODate;
   disposalResult?: DisposalResult;
   /** Denormalized: earliest upcoming hearing (FRS 7). */
@@ -73,6 +79,10 @@ export type Hearing = {
   time?: string;
   purpose?: string;
   courtRoom?: string;
+  /** Item (serial) number on that day's cause list. */
+  itemNumber?: string;
+  /** Business of the day as the court recorded it on eCourts. */
+  courtBusiness?: string;
   outcome?: HearingOutcome;
   outcomeNotes?: string;
   completedAt?: string;
@@ -123,9 +133,20 @@ export type NewCase = {
   stage?: string;
   nextHearingDate?: ISODate;
   nextHearingPurpose?: string;
+  filingNumber?: string;
+  ecourtsStatus?: string;
+  /** Set when the details came from eCourts. */
+  ecourtsSyncedAt?: string;
   /** Past and future listing dates from eCourts, saved as the case's hearing history. */
-  history?: { date: ISODate; purpose?: string }[];
+  history?: { date: ISODate; purpose?: string; business?: string }[];
+  /** Orders and judgments the court uploaded on eCourts. */
+  orders?: EcourtsOrderRef[];
 };
+
+export type EcourtsOrderRef = { date: ISODate; kind: 'interim' | 'judgment'; description?: string; file: string };
+
+/** An order or judgment of a case on eCourts, opened on demand. */
+export type CaseOrder = { id: string; caseId: string; date: ISODate; kind: 'interim' | 'judgment'; description?: string; fileName: string; lastError?: string };
 
 export type CaseFilters = {
   q?: string;

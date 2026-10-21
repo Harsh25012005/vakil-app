@@ -1,9 +1,10 @@
 import type { DisposalResult } from '@vakil/shared';
 import { todayISO } from '@/utils/date';
 import { ApiError, notFound, unwrap } from './api';
-import { casePatchToRow, likePattern, toCase, toCaseType, toClient, toCourt, toHearing, type Row } from './mappers';
+import { syncCases, warmCaseOrders } from './ecourts';
+import { casePatchToRow, likePattern, toCase, toCaseOrder, toCaseType, toClient, toCourt, toHearing, type Row } from './mappers';
 import { currentUserId, supabase } from './supabase';
-import type { Case, CaseFilters, CaseStatus, CaseType, Client, Court, Hearing, ISODate, NewCase } from './types';
+import type { Case, CaseFilters, CaseOrder, CaseStatus, CaseType, Client, Court, EcourtsOrderRef, Hearing, ISODate, NewCase } from './types';
 
 /** A case with the related records every list row needs. */
 export type CaseRow = Case & { court?: Court; caseType?: CaseType; clients: Client[]; overdue: boolean };
@@ -93,20 +94,15 @@ export async function getCase(id: string): Promise<CaseDetail> {
 
 /**
  * eCourts listing dates -> hearing rows. Past dates become completed hearings ("adjourned": the
- * matter was listed and moved on). Upcoming dates stay open. If there is no upcoming date at all,
- * the most recent past one is left open, so it shows under "Needs update" until its outcome is recorded.
- * The date create_case already scheduled (nextDate) is skipped so it isn't duplicated.
+ * matter was listed and moved on). Upcoming dates stay open. The date create_case already
+ * scheduled (nextDate) is skipped so it isn't duplicated.
  */
-export function historyToHearings(history: { date: ISODate; purpose?: string }[], nextDate: ISODate | undefined, today: ISODate) {
-  const byDate = new Map<ISODate, string | undefined>();
-  for (const h of history) if (h.date && h.date !== nextDate) byDate.set(h.date, h.purpose);
-  const dates = [...byDate.keys()].sort();
-  const hasUpcoming = (!!nextDate && nextDate >= today) || dates.some((d) => d >= today);
-  const lastPast = [...dates].reverse().find((d) => d < today);
-  return dates.map((date) => {
-    const open = date >= today || (!hasUpcoming && date === lastPast);
-    return { date, purpose: byDate.get(date), completed: !open };
-  });
+export function historyToHearings(history: { date: ISODate; purpose?: string; business?: string }[], nextDate: ISODate | undefined, today: ISODate) {
+  const byDate = new Map<ISODate, { purpose?: string; business?: string }>();
+  for (const h of history) if (h.date && h.date !== nextDate) byDate.set(h.date, { purpose: h.purpose, business: h.business });
+  // Past dates are done (the court record says what happened); only upcoming ones stay open.
+  // Outcomes are not recorded by hand: later listings come in from eCourts by themselves.
+  return [...byDate.keys()].sort().map((date) => ({ date, ...byDate.get(date), completed: date < today }));
 }
 
 /** Atomic: case + client links + first hearing in one RPC (create_case). */
@@ -127,6 +123,9 @@ export async function createCase(input: NewCase): Promise<CaseRow> {
         respondent_name: input.respondent?.trim() || null,
         opposite_counsel: input.oppositeCounsel?.trim() || null,
         stage: input.stage?.trim() || null,
+        filing_number: input.filingNumber?.trim() || null,
+        ecourts_status: input.ecourtsStatus?.trim() || null,
+        ecourts_synced_at: input.ecourtsSyncedAt ?? null,
       },
       p_client_ids: input.clientIds,
       p_next_hearing_date: input.nextHearingDate,
@@ -143,6 +142,7 @@ export async function createCase(input: NewCase): Promise<CaseRow> {
           case_id: id,
           hearing_date: h.date,
           purpose: h.purpose?.trim() || null,
+          court_business: h.business?.trim() || null,
           court_room: input.courtRoom?.trim() || null,
           outcome: h.completed ? 'adjourned' : null,
           completed_at: h.completed ? `${h.date}T18:00:00+05:30` : null,
@@ -151,7 +151,44 @@ export async function createCase(input: NewCase): Promise<CaseRow> {
       'Hearing',
     );
   }
+  if (input.orders?.length) {
+    await saveOrders(id, input.orders);
+    warmCaseOrders(id); // the newest orders download in the background, ready to open
+  }
   return getCaseRow(id);
+}
+
+/** Which of these CNRs are already cases of the advocate (archived ones included). */
+export async function existingCnrs(cnrs: string[]): Promise<Set<string>> {
+  if (!cnrs.length) return new Set();
+  const rows = await unwrap(supabase.from('cases').select('cnr_number').in('cnr_number', cnrs));
+  return new Set(rows.map((r) => r.cnr_number).filter((x): x is string => !!x));
+}
+
+/** eCourts orders of a case, newest first. They are opened on demand (orderLink), never copied. */
+export async function listCaseOrders(caseId: string): Promise<CaseOrder[]> {
+  const rows = await unwrap(supabase.from('case_orders').select('*').eq('case_id', caseId).order('order_date', { ascending: false }));
+  return rows.map(toCaseOrder);
+}
+
+/** Adds orders not seen before (one row per eCourts file name). */
+async function saveOrders(caseId: string, orders: EcourtsOrderRef[]) {
+  await unwrap(
+    supabase.from('case_orders').upsert(
+      orders.map((o) => ({ case_id: caseId, order_date: o.date, kind: o.kind, description: o.description ?? null, file_name: o.file })),
+      { onConflict: 'case_id,file_name', ignoreDuplicates: true },
+    ),
+  );
+}
+
+/**
+ * Refresh from eCourts: the court's record is read again now (the ecourts function does the work:
+ * court room, judge, stage, each listing with what the court recorded, the next date, orders).
+ */
+export async function refreshFromEcourts(c: CaseDetail): Promise<CaseRow> {
+  if (!c.cnr) throw new ApiError(422, 'NO_CNR', 'Add the CNR number to refresh this case from eCourts.');
+  await syncCases({ caseIds: [c.id], force: true });
+  return getCaseRow(c.id);
 }
 
 /** Replaces the case's client links with exactly `clientIds`. */

@@ -5,7 +5,6 @@ import { RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ErrorState } from '@/components/ErrorState';
 import { HearingGroups } from '@/components/HearingGroups';
-import { OutcomeSheet } from '@/components/OutcomeSheet';
 import { Card } from '@/components/ui/Card';
 import { CalendarMonth } from '@/components/ui/CalendarMonth';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -14,7 +13,6 @@ import { useTabBarInset } from '@/components/ui/TabBar';
 import { Text } from '@/components/ui/Text';
 import { useHearings } from '@/hooks/useCases';
 import { useTheme } from '@/hooks/useTheme';
-import type { HearingRow } from '@/services/hearings';
 import { formatLongDate, fromISODate, relativeDay, toISODate, today } from '@/utils/date';
 
 // SCR-31 Calendar: month + SCR-32 day agenda (grouped by court)
@@ -24,7 +22,6 @@ export default function CalendarTab() {
   const { colors } = useTheme();
   const [month, setMonth] = useState(today());
   const [day, setDay] = useState(toISODate(today()));
-  const [updating, setUpdating] = useState<HearingRow | null>(null);
 
   // One fetch per visible month (FR-CAL-01); the selected day is filtered from it.
   const from = toISODate(startOfMonth(month));
@@ -81,10 +78,9 @@ export default function CalendarTab() {
         ) : dayRows.length === 0 ? (
           <EmptyState icon={IconCalendarOff} title="No hearings" message={`Nothing is listed on ${format(fromISODate(day), 'd MMMM')}.`} className="py-6" />
         ) : (
-          <HearingGroups rows={dayRows} onUpdate={setUpdating} />
+          <HearingGroups rows={dayRows} />
         )}
       </ScrollView>
-      <OutcomeSheet hearing={updating} onClose={() => setUpdating(null)} />
     </View>
   );
 }

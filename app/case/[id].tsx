@@ -1,4 +1,4 @@
-import { IconBriefcaseOff, IconCalendarPlus, IconCircleCheck, IconDots } from '@tabler/icons-react-native';
+import { IconBriefcaseOff, IconCalendarPlus, IconDots, IconRefresh } from '@tabler/icons-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
@@ -11,7 +11,6 @@ import { CaseOverviewTab } from '@/components/CaseOverviewTab';
 import { useCaseActions } from '@/components/CaseActions';
 import { ErrorState } from '@/components/ErrorState';
 import { HearingFormSheet } from '@/components/HearingFormSheet';
-import { OutcomeSheet } from '@/components/OutcomeSheet';
 import { Banner } from '@/components/ui/Banner';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -23,11 +22,11 @@ import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Tabs } from '@/components/ui/Tabs';
 import { Text } from '@/components/ui/Text';
+import { useToast } from '@/components/ui/Toast';
 import { TopAppBar } from '@/components/ui/TopAppBar';
-import { useArchiveCase, useCase } from '@/hooks/useCases';
+import { useArchiveCase, useCase, useCourtSyncOnOpen, useRefreshFromEcourts } from '@/hooks/useCases';
 import { useTheme } from '@/hooks/useTheme';
-import type { HearingRow } from '@/services/hearings';
-import { isApiError } from '@/services/api';
+import { errorMessage, isApiError } from '@/services/api';
 import type { Hearing } from '@/services/types';
 import { caseStatusKind } from '@/utils/caseStatus';
 import { formatLongDate, formatTime, relativeDay } from '@/utils/date';
@@ -48,12 +47,23 @@ export default function CaseDetailScreen() {
   const archive = useArchiveCase(id ?? '');
 
   const [tab, setTab] = useState<TabKey>('overview');
-  const [outcomeFor, setOutcomeFor] = useState<HearingRow | null>(null);
   const [form, setForm] = useState<Hearing | 'new' | null>(null);
+  // Opening a case with a CNR checks the court for new dates, outcomes and orders.
+  const sync = useCourtSyncOnOpen(c);
+  const toast = useToast();
+  const courtRefresh = useRefreshFromEcourts(id ?? '');
+  /** "Update from court": the case is read from eCourts again now. */
+  const updateFromCourt = async () => {
+    if (!c) return;
+    try {
+      await courtRefresh.mutateAsync(c);
+      toast.show({ type: 'success', message: 'Updated from the court' });
+    } catch (e) {
+      toast.show({ type: 'error', message: errorMessage(e), actionLabel: 'Retry', onAction: () => void updateFromCourt() });
+    }
+  };
 
   const upcoming = useMemo(() => (c ? [...c.hearings].filter((h) => !h.completedAt).sort((a, b) => a.date.localeCompare(b.date))[0] : undefined), [c]);
-
-  const toRow = (h: Hearing): HearingRow => ({ ...h, case: c! });
   const bar = <TopAppBar title="" onBack={() => router.back()} actions={c ? <IconButton icon={IconDots} accessibilityLabel="Case actions" onPress={() => actions.open(c)} /> : undefined} />;
 
   if (q.isLoading) {
@@ -140,20 +150,35 @@ export default function CaseDetailScreen() {
                   {upcoming.time ? <InfoTag icon={IconClock} label={formatTime(upcoming.time)} tabular /> : null}
                   {c.court ? <InfoTag icon={IconBuildingBank} label={`${c.court.name}${upcoming.courtRoom ? ` · Room ${upcoming.courtRoom}` : ''}`} /> : null}
                 </View>
-                <View className="flex-row items-center gap-3">
-                  <Button label={due ? 'Record outcome' : 'Update outcome'} variant="primary" size="md" leadingIcon={IconCircleCheck} onPress={() => setOutcomeFor(toRow(upcoming))} className="flex-1" fullWidth />
-                  <IconButton icon={IconCalendarEvent} accessibilityLabel="Reschedule this hearing" variant="tonal" size="lg" onPress={() => setForm(upcoming)} />
-                </View>
+                {/* Cases not on eCourts: the date is the advocate's to change. */}
+                {!c.cnr ? <Button label="Change date" variant="tonal" size="md" leadingIcon={IconCalendarEvent} onPress={() => setForm(upcoming)} fullWidth /> : null}
               </>
             ) : (
               <>
                 <Text variant="title">No next date</Text>
                 <Text variant="body" tone="secondary">
-                  {c.status === 'active' ? 'Add the next hearing so reminders and the calendar work for this case.' : 'This case has no upcoming hearings.'}
+                  {c.cnr
+                    ? c.status === 'active'
+                      ? 'The court has not given the next date yet. It appears here as soon as eCourts has it.'
+                      : 'This case has no upcoming hearings.'
+                    : 'Add the next hearing so reminders and the calendar work for this case.'}
                 </Text>
-                <Button label="Add hearing" leadingIcon={IconCalendarPlus} size="md" onPress={() => setForm('new')} fullWidth />
+                {!c.cnr ? <Button label="Add hearing" leadingIcon={IconCalendarPlus} size="md" onPress={() => setForm('new')} fullWidth /> : null}
               </>
             )}
+            {/* eCourts cases: read the court again now (dates, what happened, orders). */}
+            {c.cnr ? (
+              <Button
+                label={sync.running || courtRefresh.isPending ? 'Updating from court…' : 'Update from court'}
+                variant="tonal"
+                size="md"
+                leadingIcon={IconRefresh}
+                onPress={() => void updateFromCourt()}
+                loading={sync.running || courtRefresh.isPending}
+                fullWidth
+                haptic="light"
+              />
+            ) : null}
           </Card>
         </View>
 
@@ -165,14 +190,13 @@ export default function CaseDetailScreen() {
         {/* 3: content */}
         <View className="px-5 pt-5">
           {tab === 'overview' ? <CaseOverviewTab c={c} /> : null}
-          {tab === 'hearings' ? <CaseHearingsTab c={c} onAdd={() => setForm('new')} onEdit={setForm} onOutcome={(h) => setOutcomeFor(toRow(h))} /> : null}
+          {tab === 'hearings' ? <CaseHearingsTab c={c} onAdd={() => setForm('new')} onEdit={setForm} /> : null}
           {tab === 'documents' ? <CaseDocumentsTab caseId={c.id} /> : null}
           {tab === 'notes' ? <CaseNotesTab caseId={c.id} /> : null}
           {tab === 'tasks' ? <CaseTasksTab caseId={c.id} /> : null}
         </View>
       </ScrollView>
 
-      <OutcomeSheet hearing={outcomeFor} onClose={() => setOutcomeFor(null)} />
       <HearingFormSheet caseId={c.id} target={form} defaultRoom={c.courtRoom} onClose={() => setForm(null)} />
       {actions.sheets}
     </View>
